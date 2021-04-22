@@ -1,6 +1,6 @@
 import numpy as np
 import cv2
-
+from sklearn.linear_model import LinearRegression
 # params for ShiTomasi corner detection
 feature_params = dict(maxCorners=200,
                       qualityLevel=0.3,
@@ -23,6 +23,7 @@ def speed_of_track(track, l=10):
 
 
 class App:
+    
     def __init__(self, video_src='49-short.mp4'):
         self.track_len = 50
         self.detect_interval = 5
@@ -37,6 +38,33 @@ class App:
         if self.writer is not None:
             self.writer.release()
 
+    def linearReg(self,vis):
+        #predicting the following trajectory using linear regression
+                predictedTracks = []
+                for tr in self.tracks :
+                    if len(tr) > 5 :
+                        X = np.array(tr)[:,0].reshape(-1,1)
+                        Y = np.array(tr)[:,1].reshape(-1,1)
+                        #absiss of value we want to predict
+                        dist = X[-2] - X[-1]
+                        
+                        X_pred = [X[-1] - i*dist for i in range(int(np.ceil(len(X)/2)))]
+                    
+                        
+                        to_predict_x= np.array(X_pred).reshape(-1,1)
+                        
+                        #now we predict 
+                        regsr=LinearRegression()
+                        regsr.fit(X,Y)
+                        predicted_y= regsr.predict(to_predict_x)
+                        predictedTracks.append([(x, y) for x,y in zip(X_pred,predicted_y)])
+                        
+                    
+                    
+                
+                
+                cv2.polylines(vis, [np.int32(tr) for tr in predictedTracks], False, (0, 0, 255))  
+                
     def run(self):
         while True:
             _ret, frame = self.cam.read()
@@ -73,7 +101,7 @@ class App:
                 self.tracks = new_tracks
                 cv2.polylines(vis, [np.int32(tr) for tr in self.tracks], False, (0, 255, 0))
                 # draw_str(vis, (20, 20), 'track count: %d' % len(self.tracks))
-
+            self.linearReg(vis)
             if self.frame_idx % self.detect_interval == 0:
                 mask = np.zeros_like(frame_gray)
                 mask[:] = 255
