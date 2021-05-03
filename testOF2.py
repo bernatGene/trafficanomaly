@@ -29,7 +29,7 @@ def speed_of_track(track, l=10):
 class App:
 
     def __init__(self, video_src='33_Trim+Trim.mp4'):
-        self.track_len = 50
+        self.track_len = 250
         self.detect_interval = 5
         self.tracks = []
         self.savedTracks = []
@@ -117,19 +117,13 @@ class App:
                 new_tracks2 = []
                 globalSpeed = self.avgSpeed()
                 for idx, (tr, (x, y), good_flag) in enumerate(zip(self.tracks, p1.reshape(-1, 2), good)):
-                    if not good_flag:
-                        continue
-                    if speed_of_track(tr) < 0.05:
+                    if not good_flag or speed_of_track(tr) < 0.05:
+                        if len(tr) > 30:
+                            self.savedTracks.append([((int(x), int(y)), None) for (x, y) in tr])
                         continue
                     # tr2.append((x, y, globalSpeed))
                     tr.append((x, y))
 
-                    # this is very hacky but otherwise we are not saving all the tracks, only those in memory before
-                    # closing. This way, when a track get to length 49, which in principle does only once, it is saved.
-                    # however, it may be better to write and save each time with a buffer. Doing it this way we are
-                    # storing everything in ram and may run out for very long videos...
-                    if len(tr) == self.track_len - 1:
-                        self.savedTracks.append([((int(x), int(y)), None) for (x,y) in tr])
                     if len(tr) > self.track_len:
                         del tr[0]
                     new_tracks.append(tr)
