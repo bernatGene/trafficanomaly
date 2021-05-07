@@ -31,6 +31,7 @@ class App:
             for point in track:
                 pt = point[0]
                 pd = point[1]
+                # print(point)
                 row, col = int(pt[0]), int(pt[1])
                 cv2.circle(frame, (row, col), 2, (0, 255, 0))
                 pred_frame = np.zeros((410, 800, 3), dtype=np.uint8)

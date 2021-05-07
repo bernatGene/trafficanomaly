@@ -1,9 +1,8 @@
 import numpy as np
 import cv2
-import csv
 import json
-# from sklearn.linear_model import LinearRegression
-from sklearn import linear_model
+import sys
+import lstm_model
 
 # params for ShiTomasi corner detection
 feature_params = dict(maxCorners=200,
@@ -38,9 +37,12 @@ class App:
         self.frame_idx = 0
         self.writer = None
         self.track_count = 0
+        self.model = lstm_model.LstmModel(20, 10)
+        self.save_tracks = False
 
     def close(self):
-        self.saveTracks()
+        if self.save_tracks:
+            self.saveTracks()
         self.cam.release()
         if self.writer is not None:
             self.writer.release()
@@ -49,46 +51,16 @@ class App:
         saved = self.savedTracks
         with open("out.json", 'w') as f:
             json.dump(saved, f, default=lambda x: str(x))
-        # with open("out.csv", "w", newline="") as f:
-        #     cw = csv.writer(f, delimiter=';', escapechar=' ', quoting=csv.QUOTE_NONE)
-        #     # cw.writerow(data)    # wrong
-        #     for x in saved:
-        #         cw.writerow(x)
 
-        # np.savetxt("Tracks.csv", saved, delimiter=",",fmt='%s')
-
-    def avgSpeed(self):
-        # This function will give the average speed of all the vehicles for a particular moment (based on the track of each vehicules)
-        speeds = []
+    def plot_predictions(self, vis):
+        predicted_tracks = []
         for tr in self.tracks:
-            # The time reference is the number of frames so the speed is = (distance/nbr of frame during distance)
-
-            speeds.append(speed_of_track(tr))
-
-        avgSpeed = sum(speeds) / len(speeds)
-        return avgSpeed
-
-    def linearReg(self, vis):
-        # predicting the following trajectory using linear regression
-        predictedTracks = []
-        for tr in self.tracks:
-            if len(tr) > 5:
-                X = np.array(tr)[:, 0].reshape(-1, 1)
-                Y = np.array(tr)[:, 1].reshape(-1, 1)
-                # absiss of value we want to predict
-                dist = X[-2] - X[-1]
-
-                X_pred = [X[-1] - i * dist for i in range(int(np.ceil(len(X) / 3)))]
-
-                to_predict_x = np.array(X_pred).reshape(-1, 1)
-
-                # now we predict
-                regsr = linear_model.Ridge()
-                regsr.fit(X, Y)
-                predicted_y = regsr.predict(to_predict_x)
-                predictedTracks.append([(x, y) for x, y in zip(X_pred, predicted_y)])
-
-        cv2.polylines(vis, [np.int32(tr) for tr in predictedTracks], False, (0, 0, 255))
+            if len(tr) < 20:
+                continue
+            x = tr[-20:]
+            pred = self.model.predict(x)
+            predicted_tracks.append(pred)
+        cv2.polylines(vis, [np.int32(tr) for tr in predicted_tracks], False, (0, 0, 255))
 
     def run(self):
         while True:
@@ -111,33 +83,21 @@ class App:
                 p0r, _st, _err = cv2.calcOpticalFlowPyrLK(img1, img0, p1, None, **lk_params)
                 d = abs(p0 - p0r).reshape(-1, 2).max(-1)
                 good = d < 1
-                # fast = d > 1e-5
-                # good = good & fast
                 new_tracks = []
-                new_tracks2 = []
-                globalSpeed = self.avgSpeed()
                 for idx, (tr, (x, y), good_flag) in enumerate(zip(self.tracks, p1.reshape(-1, 2), good)):
                     if not good_flag or speed_of_track(tr) < 0.05:
-                        if len(tr) > 30:
+                        if self.save_tracks and len(tr) > 30:
                             self.savedTracks.append([((int(x), int(y)), None) for (x, y) in tr])
                         continue
-                    # tr2.append((x, y, globalSpeed))
                     tr.append((x, y))
-
                     if len(tr) > self.track_len:
                         del tr[0]
                     new_tracks.append(tr)
-                    # new_tracks2.append(tr2)
-                    cv2.circle(vis, (int(x), int(y)), 3, (0, 255, 0), -1)
-                    if len(tr) > 30:
-                        font = cv2.FONT_HERSHEY_SIMPLEX
-                        cv2.putText(vis, str(idx), (int(x), int(y)), font, 1, (0, 0, 255), 2, cv2.LINE_AA)
 
                 self.tracks = new_tracks
-                # self.savedTracks = new_tracks2
                 cv2.polylines(vis, [np.int32(tr) for tr in self.tracks], False, (0, 255, 0))
-                # draw_str(vis, (20, 20), 'track count: %d' % len(self.tracks))
-            # self.linearReg(vis)
+
+            self.plot_predictions(vis)
 
             if self.frame_idx % self.detect_interval == 0:
                 mask = np.zeros_like(frame_gray)
@@ -148,7 +108,6 @@ class App:
                 if p is not None:
                     for x, y in np.float32(p).reshape(-1, 2):
                         self.tracks.append([(x, y)])
-                        # self.savedTracks.append([(x, y, 10)])
 
             self.frame_idx += 1
             self.prev_gray = frame_gray
@@ -159,16 +118,14 @@ class App:
 
             if ch == 27:
                 self.close()
-
                 break
 
 
 def main():
-    import sys
     try:
         video_src = sys.argv[1]
     except:
-        # video_src = './33_Trim_Trim.mp4'
+        print("No args, Choosing default video")
         video_src = '49-sshort.mp4'
 
     App(video_src).run()
