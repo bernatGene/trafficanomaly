@@ -29,6 +29,7 @@ class LstmModel:
         return self.model(x, training=False)
 
     def predict(self, points):
+        
         points = np.array(points)
         predict = self._serve(np.expand_dims(points,0))
         return predict.numpy().reshape(self.pred_len, 2)
