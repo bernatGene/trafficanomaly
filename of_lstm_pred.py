@@ -50,13 +50,15 @@ class App:
         self.save_tracks = False
         self.accidentPos = []
 
-    def close(self,vis):
+    def close(self,vis=0):
         if self.save_tracks:
             self.saveTracks()
         self.cam.release()
         if self.writer is not None:
             self.writer.release()
-        showAccident(self.accidentPos)
+        if self.accidentPos :
+            print("Saving the images")
+            showAccident(self.accidentPos)
             
             
 
@@ -95,23 +97,25 @@ class App:
                 
                 Len = len(predictedTraj)
                 realTraj = np.array(tr[-Len:]) 
-                dist = np.linalg.norm(predictedTraj-realTraj)
                 
+                dist = 0
+                #The metric used will be of our own creation
+                for index in range(1,len(predictedTraj)):
+                       a = np.linalg.norm(realTraj[-index]-realTraj[-index-1])
+                       b = np.linalg.norm(predictedTraj[-index]- realTraj[-index-1])
+                       dot_product = np.dot(realTraj[-index]-realTraj[-index-1], predictedTraj[-index]- realTraj[-index-1])
+                       angle = np.arccos(dot_product)
+                       dist += np.sin(angle) * (np.abs(a - b)/max(1,a))
+                      
                 if dist > threshold :
                     print("accident")
                     self.plot_accidentPos(tr[-1],vis)
                     
-        
-                    
-                     
-            
-            
-        
     def run(self):
         while True:
             _ret, frame = self.cam.read()
             if not _ret:
-                self.close(vis)
+                self.close()
                 break
             if self.frame_idx == 0:
                 img_shape = frame.shape
@@ -153,7 +157,7 @@ class App:
                 self.tracks = new_tracks
                 self.savedPredictions = new_predictions #now the prediction are in the same order as are the tracks, therefore we can find the corresponding ones.
                 cv2.polylines(vis, [np.int32(tr) for tr in self.tracks], False, (0, 255, 0))
-                self.CheckAccident(frame_gray,vis)
+                #self.CheckAccident(frame_gray,vis)
             self.plot_predictions(vis)
 
             if self.frame_idx % self.detect_interval == 0:
