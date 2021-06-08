@@ -1,5 +1,7 @@
 import numpy as np
 import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras import layers
 
 
 class LstmModel:
@@ -11,18 +13,19 @@ class LstmModel:
         self.load_model()
 
     def get_model(self):
-        model = tf.keras.Sequential(
+        model = keras.Sequential(
             [
-                tf.keras.Input(shape=(self.max_len, 2)),
-                tf.keras.layers.LSTM(64),
-                tf.keras.layers.Dense(32, activation='relu'),
-                tf.keras.layers.Dense(2 * self.pred_len, activation=None),  # Linear activation
+                layers.InputLayer(input_shape=(self.max_len, 2)),
+                layers.LSTM(64),
+                layers.Dense(128, activation='relu'),
+                layers.Dense(32, activation='relu'),
+                layers.Dense(2 * self.pred_len, activation=None),  # Linear activation
             ]
         )
         self.model = model
 
     def load_model(self):
-        self.model.load_weights('trained_colab2.h5')
+        self.model.load_weights('trained_colab2_83.h5')
 
     @tf.function
     def _serve(self, x):
