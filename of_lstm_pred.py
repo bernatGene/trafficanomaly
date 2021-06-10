@@ -80,7 +80,15 @@ class App:
     def plot_accidentPos(self,pos,vis):
         #This gives a screen shot of all the positions where an accident occured
         color = (255, 0, 0)
-        img = cv2.circle(vis,pos, 5, color, -1)
+        
+        h, w, c = vis.shape
+        
+        start_point = (int(round(pos[0]-h*0.1)) , int(round(pos[1]-w*0.05)))
+        end_point =   (int(round(pos[0] + h*0.1)), int(round(pos[1] + w*0.05)))
+        thickness = 2
+        
+        print(vis)
+        img = cv2.rectangle(vis , start_point , end_point , color,thickness)
         self.accidentPos.append(img)
         
         
@@ -89,7 +97,9 @@ class App:
         #Here we are gonna check the distance between the prediction made for the last 5 points and the actual trajectory. 
         # we are going to measure the distance between the two vectors. Using the euclidian norm for the moment
         
-        threshold = 100
+        threshold_speed = 16
+        threshold_trajectory = 20
+        
         
         for idx, tr in enumerate(self.tracks):
             if(len(self.savedPredictions[idx]) == 10 ) : #checking if there is enough information to compare
@@ -99,17 +109,40 @@ class App:
                 realTraj = np.array(tr[-Len:]) 
                 
                 dist = 0
+                
+                traj = 0
+                speed = 0
+                
                 #The metric used will be of our own creation
                 for index in range(1,len(predictedTraj)):
                        a = np.linalg.norm(realTraj[-index]-realTraj[-index-1])
                        b = np.linalg.norm(predictedTraj[-index]- realTraj[-index-1])
+        
+                       c = np.linalg.norm(predictedTraj[-index]- predictedTraj[-index-1])
+                       
                        dot_product = np.dot(realTraj[-index]-realTraj[-index-1], predictedTraj[-index]- realTraj[-index-1])
-                       angle = np.arccos(dot_product)
-                       dist += np.sin(angle) * (np.abs(a - b)/max(1,a))
-                      
-                if dist > threshold :
-                    print("accident")
+                       angle = np.arccos(dot_product/(a*b))
+                       
+                       traj += abs(np.sin(angle))
+                       
+                       
+                       dist += max(0,threshold_trajectory-abs(np.sin(angle))) * max(0,np.abs(a - b)-threshold_speed)/max(1,a)
+                        
+                #☻if traj > threshold_trajectory :
+                #  print('trajectory : ',abs(np.sin(angle)))
+                
+                speed = np.linalg.norm(predictedTraj[-1]- predictedTraj[0]) - np.linalg.norm(realTraj[-1]-realTraj[0]) 
+                    
+    
+                if speed > threshold_speed :
                     self.plot_accidentPos(tr[-1],vis)
+                       
+                      
+                #if dist == 0 :
+                    #print("accident")
+                    #self.plot_accidentPos(tr[-1],vis)
+                    
+                    
                     
     def run(self):
         while True:
@@ -156,8 +189,8 @@ class App:
 
                 self.tracks = new_tracks
                 self.savedPredictions = new_predictions #now the prediction are in the same order as are the tracks, therefore we can find the corresponding ones.
-                cv2.polylines(vis, [np.int32(tr) for tr in self.tracks], False, (0, 255, 0))
-                #self.CheckAccident(frame_gray,vis)
+                cv2.polylines(vis, [np.int32(tr[-10:]) for tr in self.tracks], False, (0, 255, 0))
+                self.CheckAccident(frame_gray,vis)
             self.plot_predictions(vis)
 
             if self.frame_idx % self.detect_interval == 0:
@@ -188,7 +221,7 @@ def main():
         video_src = sys.argv[1]
     except:
         print("No args, Choosing default video")
-        video_src = '91_Trim2.mp4'
+        video_src = '83_Trim.mp4'
 
     App(video_src).run()
     print('Done')
